@@ -10,6 +10,8 @@ def train_model(model, train_loader, val_loader, epochs=5, learning_rate=0.001):
     
     print("Starting training...")
     
+    history = {'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': []}
+    
     for epoch in range(epochs):
         model.train()
         total_loss = 0
@@ -21,9 +23,6 @@ def train_model(model, train_loader, val_loader, epochs=5, learning_rate=0.001):
             labels = batch['label'].unsqueeze(1)
             texts = batch['text']
             
-            # Extract style features on the fly
-            # In a production system, we would pre-compute this, but for this core project
-            # doing it here keeps the code simpler and more readable.
             style_feats = [style_extractor.extract_features(t) for t in texts]
             style_feats = torch.stack(style_feats)
             
@@ -41,10 +40,18 @@ def train_model(model, train_loader, val_loader, epochs=5, learning_rate=0.001):
             total += labels.size(0)
             
         train_acc = correct / total
-        print(f"Epoch {epoch+1}/{epochs} | Loss: {total_loss/len(train_loader):.4f} | Train Acc: {train_acc:.4f}")
+        train_loss = total_loss/len(train_loader)
+        print(f"Epoch {epoch+1}/{epochs} | Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f}")
+        
+        history['train_loss'].append(train_loss)
+        history['train_acc'].append(train_acc)
         
         # Validation
-        validate_model(model, val_loader, style_extractor, criterion)
+        val_loss, val_acc = validate_model(model, val_loader, style_extractor, criterion)
+        history['val_loss'].append(val_loss)
+        history['val_acc'].append(val_acc)
+        
+    return history
 
 def validate_model(model, val_loader, style_extractor, criterion):
     model.eval()
@@ -73,6 +80,8 @@ def validate_model(model, val_loader, style_extractor, criterion):
             total_alpha += alpha.mean().item()
             
     val_acc = correct / total
+    val_loss = total_loss/len(val_loader)
     avg_alpha = total_alpha / len(val_loader)
-    print(f"   >>> Val Loss: {total_loss/len(val_loader):.4f} | Val Acc: {val_acc:.4f} | Avg Gate Alpha: {avg_alpha:.4f}")
-    print(f"   (Alpha close to 1 means Content focus, close to 0 means Style focus)")
+    print(f"   >>> Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | Avg Gate Alpha: {avg_alpha:.4f}")
+    
+    return val_loss, val_acc
